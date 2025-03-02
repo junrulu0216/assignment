@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artsy Artist Search</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+
+<body>
+    <div class="header">
+        <div>Artist Search</div>
+    </div>
+
+    <main class="content">
+        <div class="input-container">
+            <div class="search-bar">
+                <button id="search-button">
+                    <img src="{{ url_for('static', filename='img/search.svg') }}" alt="Search">
+                </button>
+                <input type="text" id="search-input" placeholder="Please enter an artist name." required>
+                <button id="clear-button">
+                    <img src="{{ url_for('static', filename='img/c.svg') }}" alt="Clear">
+                </button>
+            </div>
+            <div class="error-message" style="line-height: 30px;">
+                <div style="display: flex;align-items: center;">
+                    <img src="{{ url_for('static', filename='img/g.png') }}" alt="" style="width: 30px; height: 30px;">
+                    &nbsp;
+                    Please fill out this field.
+                </div>
+            </div>
+        </div>
+        <img id="loading-gif" src="loading.gif" alt="Loading...">
+        <div id="no-result" style="display: none;">
+            <div class="no-result"
+                style="width: 580px;background-color: #cccccc;font-size: 20px;display: flex;justify-content: center;border-radius: 20px; height: 45px;margin-top: 30px;line-height: 45px;">
+                No results found.
+            </div>
+        </div>
+        <div class="loading" id="loading1" style="display: none;">
+            <img src="{{ url_for('static', filename='img/loading.gif') }}" alt="" style="width:50px;height: 50px;">
+        </div>
+        <div id="search-results" class="results-container">
+
+        </div>
+        <div class="loading" id="loading2" style="display: none;"><img
+                src="{{ url_for('static', filename='img/loading.gif') }}" alt="" style="width:50px;height: 50px;"></div>
+        <div id="artist-details" class="details-container"></div>
+    </main>
+
+    <footer class="footer">
+        <a href="https://www.artsy.net/" target="_blank">
+
+            Powered by <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Artsy Logo"> Artsy.
+        </a>
+    </footer>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const searchButton = document.getElementById('search-button');
+            const searchInput = document.getElementById('search-input');
+            const errorMessage = document.querySelector('.error-message');
+            const clearButton = document.getElementById('clear-button');
+            const resultsContainer = document.getElementById('search-results');
+            const detailsContainer = document.getElementById('artist-details');
+            const loading1 = document.getElementById('loading1');
+            const loading2 = document.getElementById('loading2');
+            const noResult = document.getElementById('no-result');
+            let activeCard = null; 
+
+            clearButton.addEventListener('click', function () {
+                searchInput.value = '';
+                resultsContainer.innerHTML = '';
+                detailsContainer.innerHTML = '';
+                errorMessage.style.display = 'none';
+                if (activeCard) {
+                    activeCard.classList.remove('active');
+                    activeCard = null;
+                }
+            });
+
+            searchButton.addEventListener('click', function () {
+                validateInput();
+            });
+
+            searchInput.addEventListener('keypress', function (event) {
+                if (event.key === 'Enter') {
+                    validateInput();
+                }
+            });
+
+            function validateInput() {
+                if (searchInput.value.trim() === '') {
+                    errorMessage.style.display = 'block';
+                    resultsContainer.innerHTML = '';
+                    detailsContainer.innerHTML = '';
+                } else {
+                    errorMessage.style.display = 'none';
+                    performSearch();
+                }
+            }
+
+            function performSearch() {
+                loading1.style.display = ''
+                const artistName = searchInput.value.trim();
+                console.log('Performing search for:', artistName);
+
+                fetch(`/api/artist/${encodeURIComponent(artistName)}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Artist not found');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error || !data.length) {
+                            noResult.style.display = ''
+                            resultsContainer.innerHTML = '';
+                            detailsContainer.innerHTML = '';
+                            loading1.style.display = 'none'
+                        } else {
+                            noResult.style.display = 'none'
+                            loading1.style.display = 'none'
+                            displayArtistData(data);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Fetch error:', error);
+                        errorMessage.textContent = 'An error occurred while searching';
+                        errorMessage.style.display = 'block';
+                        resultsContainer.innerHTML = '';
+                        detailsContainer.innerHTML = '';
+                    });
+            }
+
+            function displayArtistData(artists) {
+                resultsContainer.innerHTML = '';
+
+                artists.forEach(artist => {
+                    const imageUrl = artist.thumbnail.includes('missing_image.png')
+                        ? "{{ url_for('static', filename='img/logo.png') }}"
+                        : artist.thumbnail;
+
+                    const card = document.createElement('div');
+                    card.className = 'artist-card';
+                    card.dataset.artistId = artist.id; 
+
+                    card.innerHTML = `
+                <img src="${imageUrl}" alt="${artist.name}" class="artist-image">
+                <div class="artist-name">${artist.name}</div>
+            `;
+
+                    card.addEventListener('click', function () {
+                        if (activeCard) {
+                            activeCard.classList.remove('active');
+                        }
+                        card.classList.add('active');
+                        activeCard = card;
+                        fetchArtistDetails(artist.id);
+                    });
+
+                    resultsContainer.appendChild(card);
+                });
+            }
+
+            function fetchArtistDetails(artistId) {
+                loading2.style.display = ''
+                fetch(`/api/artist/details/${encodeURIComponent(artistId)}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Details not found');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            detailsContainer.innerHTML = '<p>No details available.</p>';
+                        } else {
+                            loading2.style.display = 'none'
+                            displayArtistDetails(data);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Fetch details error:', error);
+                        detailsContainer.innerHTML = '<p>Error loading artist details.</p>';
+                    });
+            }
+
+            function displayArtistDetails(details) {
+                const name = details.name || '';
+                const birthday = details.birthday || '';
+                const deathday = details.deathday || '';
+                const nationality = details.nationality || '';
+                const biography = details.biography || '';
+                console.log(name)
+                let firstLine = name;
+                if (birthday || deathday) {
+                    firstLine += ` (${birthday}${deathday ? ` - ${deathday}` : ''})`;
+                }
+
+                const missingFields = [];
+                if (!biography) missingFields.push('No Biography');
+                if (!birthday) missingFields.push('No Birth Year');
+                if (!deathday) missingFields.push('No Death Year');
+                if (!nationality) missingFields.push('No Nationality');
+
+                detailsContainer.innerHTML = `
+        <div class="artist-details-content">
+            <div class="name">${firstLine}</div>
+            <p class="nationality">${nationality || ''}</p>
+            <div class="biography">${biography ? biography.replace(/\n\n/g, '</p><p>') : ''}</div>
+            ${missingFields.length > 0 ? `<p class="missing-info">${missingFields.join('、')}</p>` : ''}
+        </div>
+    `;
+            }
+        });
+
+    </script>
+</body>
+
+</html>
