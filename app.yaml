@@ -1,0 +1,15 @@
+runtime: python39  # 指定 Python 版本为 3.9
+env: standard      # 使用标准环境（支持 Python 3.9）
+
+entrypoint: gunicorn -b :$PORT app:app  # 指定启动命令
+
+handlers:
+  - url: /static
+    static_dir: static  # 静态文件目录
+
+
+  - url: /.*
+    script: auto        # 所有其他请求由 Flask 处理
+
+env_variables:
+  FLASK_ENV: "production"  # 设置环境变量为生产环境
